@@ -34,7 +34,7 @@ English, Spanish, French, German, Italian, Portuguese, Russian, Japanese, Korean
 
 ### Text Translation
 
-\`\`\`bash
+```bash
 POST /api/translate/text
 Content-Type: application/json
 
@@ -43,18 +43,18 @@ Content-Type: application/json
   "source": "en",
   "target": "es"
 }
-\`\`\`
+```
 
 **Response:**
-\`\`\`json
+```json
 {
   "translatedText": "Hola Mundo"
 }
-\`\`\`
+```
 
 ### Object Translation
 
-\`\`\`bash
+```bash
 POST /api/translate/object
 Content-Type: application/json
 
@@ -66,17 +66,17 @@ Content-Type: application/json
   "source": "en",
   "target": "es"
 }
-\`\`\`
+```
 
 **Response:**
-\`\`\`json
+```json
 {
   "translatedObject": {
     "title": "Bienvenido",
     "description": "Este es un texto de muestra"
   }
 }
-\`\`\`
+```
 
 ## 🏃‍♂️ Quick Start
 
@@ -88,30 +88,30 @@ Content-Type: application/json
 ### Installation
 
 1. **Clone the repository**
-   \`\`\`bash
+   ```bash
    git clone https://github.com/adliih/translate.git
    cd translate
-   \`\`\`
+   ```
 
 2. **Install dependencies**
-   \`\`\`bash
+   ```bash
    npm install
-   \`\`\`
+   ```
 
 3. **Set up environment variables**
-   \`\`\`bash
+   ```bash
    cp .env.example .env.local
-   \`\`\`
+   ```
    
    Add your Google Generative AI API key:
-   \`\`\`env
+   ```env
    GOOGLE_GENERATIVE_AI_API_KEY=your_api_key_here
-   \`\`\`
+   ```
 
 4. **Run the development server**
-   \`\`\`bash
+   ```bash
    npm run dev
-   \`\`\`
+   ```
 
 5. **Open your browser**
    Navigate to [http://localhost:3000](http://localhost:3000)
@@ -133,7 +133,7 @@ Content-Type: application/json
 
 ### Using the API
 
-\`\`\`javascript
+```javascript
 // Text translation
 const response = await fetch('https://translate.adliih.com/api/translate/text', {
   method: 'POST',
@@ -149,7 +149,7 @@ const response = await fetch('https://translate.adliih.com/api/translate/text', 
 
 const data = await response.json();
 console.log(data.translatedText); // "Bonjour, comment allez-vous ?"
-\`\`\`
+```
 
 ## 🔧 Configuration
 
@@ -160,7 +160,7 @@ The application supports various configuration options through environment varia
 
 ## 📁 Project Structure
 
-\`\`\`
+```
 translate/
 ├── app/
 │   ├── api/translate/
@@ -173,16 +173,16 @@ translate/
 ├── hooks/
 ├── lib/
 └── public/
-\`\`\`
+```
 
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
 1. Fork the project
-2. Create your feature branch (\`git checkout -b feature/AmazingFeature\`)
-3. Commit your changes (\`git commit -m 'Add some AmazingFeature'\`)
-4. Push to the branch (\`git push origin feature/AmazingFeature\`)
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
 ## 📄 License
