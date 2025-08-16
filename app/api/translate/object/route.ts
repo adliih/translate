@@ -20,7 +20,10 @@ export async function POST(request: NextRequest) {
     // Create a dynamic schema based on the input object structure
     const createSchemaFromObject = (obj: any): z.ZodType<any> => {
       if (Array.isArray(obj)) {
-        if (obj.length === 0) return z.array(z.any())
+        if (obj.length === 0) {
+          // For empty arrays, return a schema that accepts any array
+          return z.array(z.unknown()).optional()
+        }
         return z.array(createSchemaFromObject(obj[0]))
       }
 
@@ -44,7 +47,11 @@ export async function POST(request: NextRequest) {
         return z.boolean()
       }
 
-      return z.any()
+      if (obj === null) {
+        return z.null()
+      }
+
+      return z.unknown()
     }
 
     const schema = createSchemaFromObject(object)
@@ -55,7 +62,9 @@ export async function POST(request: NextRequest) {
       prompt: `Translate all string values in the following JSON object from ${source} to ${target}. 
       Keep the structure exactly the same, only translate string values. 
       Do not translate keys, only values. 
-      Keep numbers, booleans, and other non-string values unchanged.
+      Keep numbers, booleans, null values, and other non-string values unchanged.
+      Preserve empty arrays as empty arrays [].
+      Do not add or remove any fields or array elements.
       
       Object to translate: ${JSON.stringify(object, null, 2)}`,
       schema: schema,
