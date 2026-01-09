@@ -5,16 +5,18 @@ import { google } from "@ai-sdk/google"
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { text, source, target } = body
+    let { text, source, target } = body
 
     // Validate input
     if (!text || typeof text !== "string") {
       return NextResponse.json({ error: "Text is required and must be a string" }, { status: 400 })
     }
 
-    if (!source || !target) {
+    if (!target) {
       return NextResponse.json({ error: "Source and target languages are required" }, { status: 400 })
     }
+
+    source ||= 'auto';
 
     // Use Gemini to translate text
     const { text: translatedText } = await generateText({

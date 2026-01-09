@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Target languages are required" }, { status: 400 })
     }
 
-    source || = 'auto';
+    source ||= 'auto';
 
     // Create a dynamic schema based on the input object structure
     const createSchemaFromObject = (obj: any): z.ZodType<any> => {
