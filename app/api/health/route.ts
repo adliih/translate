@@ -11,6 +11,7 @@ export async function GET() {
         provider: MODEL.provider,
         modelId: MODEL.modelId,
         error: healthStatus.error,
+        results: healthStatus.results,
       },
       timestamp: healthStatus.timestamp,
     },

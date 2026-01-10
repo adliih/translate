@@ -2,7 +2,7 @@ import { generateText, generateObject } from "ai";
 import { google } from "@ai-sdk/google";
 import { z } from "zod";
 
-export const MODEL = google("gemini-2.5-flash");
+export const MODEL = google("gemini-2.5-flash-lite");
 const TEMPERATURE = 0.1;
 
 /**
