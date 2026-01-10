@@ -130,19 +130,82 @@ export async function translateObject(
 ): Promise<any> {
   const schema = createSchemaFromObject(object);
 
-  const { object: translatedObject } = await generateObject({
-    model: MODEL,
-    prompt: `Translate all string values in the following JSON object from ${source} to ${target}. 
+  const prompt = `Translate all string values in the following JSON object from ${source} to ${target}. 
       Keep the structure exactly the same, only translate string values. 
       Do not translate keys, only values. 
       Keep numbers, booleans, null values, and other non-string values unchanged.
       Preserve empty arrays as empty arrays [].
       Do not add or remove any fields or array elements.
       
-      Object to translate: ${JSON.stringify(object, null, 2)}`,
+      Object to translate:
+      ${JSON.stringify(object, null, 2)}`;
+
+  console.log("Translate Object Prompt:", prompt);
+
+  const { object: translatedObject } = await generateObject({
+    model: MODEL,
+    prompt: prompt,
     schema: schema,
     temperature: TEMPERATURE,
   });
 
   return translatedObject;
+}
+
+/**
+ * Translates all string values in an object to multiple target languages in a single LLM call
+ * @param object - The object to translate
+ * @param source - Source language (defaults to "auto")
+ * @param targets - Array of target language codes (e.g., ["es", "fr", "de"])
+ * @returns Object with language codes as keys and translated objects as values
+ *          Example: { "es": {...}, "fr": {...}, "de": {...} }
+ */
+export async function translateObjectToMultipleLanguages(
+  object: any,
+  source: string = "auto",
+  targets: string[]
+): Promise<Record<string, any>> {
+  if (!targets || targets.length === 0) {
+    throw new Error("At least one target language is required");
+  }
+
+  // Create a schema where each target language is a key pointing to the translated object structure
+  const baseSchema = createSchemaFromObject(object);
+  const multiLanguageSchema: Record<string, z.ZodType<any>> = {};
+
+  for (const target of targets) {
+    multiLanguageSchema[target] = baseSchema;
+  }
+
+  const schema = z.object(multiLanguageSchema);
+
+  const prompt = `Translate all string values in the following JSON object from ${source} to multiple target languages: ${targets.join(
+    ", "
+  )}.
+      Return an object where each key is a language code (${targets.join(
+        ", "
+      )}) and the value is the translated object.
+      Keep the structure exactly the same for each translation, only translate string values. 
+      Do not translate keys, only values. 
+      Keep numbers, booleans, null values, and other non-string values unchanged.
+      Preserve empty arrays as empty arrays [].
+      Do not add or remove any fields or array elements.
+      
+      Object to translate:
+      ${JSON.stringify(object, null, 2)}
+      
+      Return format: { "${targets[0]}": {...translated object...}, "${
+    targets[1]
+  }": {...translated object...}, ... }`;
+
+  console.log("Translate Object to Multiple Languages Prompt:", prompt);
+
+  const { object: translatedObjects } = await generateObject({
+    model: MODEL,
+    prompt: prompt,
+    schema: schema,
+    temperature: TEMPERATURE,
+  });
+
+  return translatedObjects;
 }

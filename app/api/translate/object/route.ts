@@ -1,10 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { translateObject } from "@/lib/translation";
+import {
+  translateObject,
+  translateObjectToMultipleLanguages,
+} from "@/lib/translation";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    let { object, source, target } = body;
+    let { object, source, target, targets } = body;
 
     // Validate input
     if (!object || typeof object !== "object") {
@@ -14,27 +17,41 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!target) {
+    source ||= "auto";
+
+    // Support both single target and multiple targets
+    if (targets && Array.isArray(targets) && targets.length > 0) {
+      // Multiple languages - use single LLM call
+      const translatedObjects = await translateObjectToMultipleLanguages(
+        object,
+        source,
+        targets
+      );
+
+      return NextResponse.json({
+        translatedObjects,
+      });
+    } else if (target) {
+      // Single language - use existing function
+      const translatedObject = await translateObject(object, source, target);
+
+      return NextResponse.json({
+        translatedObject,
+      });
+    } else {
       return NextResponse.json(
-        { error: "Target languages are required" },
+        { error: "Either 'target' or 'targets' (array) is required" },
         { status: 400 }
       );
     }
-
-    source ||= "auto";
-
-    // Use reusable translation function
-    const translatedObject = await translateObject(object, source, target);
-
-    return NextResponse.json({
-      translatedObject,
-    });
   } catch (error) {
     console.error("Object translation error:", error);
     return NextResponse.json(
       {
         error:
-          "Object translation failed. Please check your JSON format and try again.",
+          error instanceof Error
+            ? error.message
+            : "Object translation failed. Please check your JSON format and try again.",
       },
       { status: 500 }
     );
