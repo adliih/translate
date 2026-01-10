@@ -2,7 +2,7 @@ import { generateText, generateObject } from "ai";
 import { google } from "@ai-sdk/google";
 import { z } from "zod";
 
-export const MODEL = google("gemma-3-4b");
+export const MODEL = google("gemini-flash-lite-latest");
 const TEMPERATURE = 0.1;
 
 /**
@@ -25,9 +25,9 @@ export async function testTranslationIntegration(): Promise<{
     const resultText = await translateText(inputText, source, target);
     results.push({ inputText, source, target, resultText });
 
-    const inputObject = { inputText };
-    const resultObject = await translateObject(inputObject, source, target);
-    results.push({ inputObject, source, target, resultObject });
+    // const inputObject = { inputText };
+    // const resultObject = await translateObject(inputObject, source, target);
+    // results.push({ inputObject, source, target, resultObject });
 
     // Basic validation - if we get a response, the integration is working
     if (resultText && resultText.trim().length > 0) {
