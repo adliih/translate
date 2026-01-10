@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { generateText } from "ai";
-import { google } from "@ai-sdk/google";
+import { translateText } from "@/lib/translation";
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,17 +23,11 @@ export async function POST(request: NextRequest) {
 
     source ||= "auto";
 
-    // Use Gemini to translate text
-    const { text: translatedText } = await generateText({
-      model: google("gemini-2.5-flash"),
-      prompt: `Translate the following text from ${source} to ${target}. Only return the translated text, nothing else:
-
-"${text}"`,
-      temperature: 0.1,
-    });
+    // Use reusable translation function
+    const translatedText = await translateText(text, source, target);
 
     return NextResponse.json({
-      translatedText: translatedText.trim(),
+      translatedText,
     });
   } catch (error) {
     console.error("Translation error:", error);
