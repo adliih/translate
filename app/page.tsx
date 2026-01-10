@@ -80,7 +80,7 @@ export default function HomePage() {
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to translate text. Please try again.",
+        description: "Failed to translate text. Please try again. " + error,
         variant: "destructive",
       })
     } finally {
@@ -137,7 +137,7 @@ export default function HomePage() {
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to translate object. Please try again.",
+        description: "Failed to translate object. Please try again." + error,
         variant: "destructive",
       })
     } finally {

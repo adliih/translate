@@ -8,8 +8,7 @@ export async function GET() {
     {
       status: healthStatus.status,
       integration: {
-        provider: MODEL.provider,
-        modelId: MODEL.modelId,
+        model: MODEL,
         error: healthStatus.error,
         results: healthStatus.results,
       },
