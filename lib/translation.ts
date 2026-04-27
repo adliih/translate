@@ -1,9 +1,48 @@
-import { generateText, Output } from "ai";
+import { generateText, Output, type LanguageModelUsage } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { z } from "zod";
 
-export const MODEL = anthropic("claude-haiku-4-5-20251001");
+/** Single source of truth for logs and the Anthropic client */
+export const TRANSLATION_MODEL_ID = "claude-haiku-4-5-20251001" as const;
+export const MODEL = anthropic(TRANSLATION_MODEL_ID);
 const TEMPERATURE = 0.1;
+
+/** Rough upper-bound token estimate from character count (English-ish text). */
+function estimateTokens(chars: number): number {
+  return Math.ceil(chars / 4);
+}
+
+function logTranslationTelemetry(payload: {
+  event: "translation.llm.complete" | "translation.llm.error";
+  operation: string;
+  modelId: string;
+  durationMs: number;
+  promptChars: number;
+  jsonPayloadChars?: number;
+  usage?: LanguageModelUsage;
+  totalUsage?: LanguageModelUsage;
+  error?: string;
+  meta?: Record<string, unknown>;
+}): void {
+  const u = payload.totalUsage ?? payload.usage;
+  console.log(
+    JSON.stringify({
+      event: payload.event,
+      operation: payload.operation,
+      modelId: payload.modelId,
+      durationMs: payload.durationMs,
+      promptChars: payload.promptChars,
+      jsonPayloadChars: payload.jsonPayloadChars,
+      estimatedPromptTokens: estimateTokens(payload.promptChars),
+      inputTokens: u?.inputTokens,
+      outputTokens: u?.outputTokens,
+      cacheReadTokens: u?.inputTokenDetails?.cacheReadTokens,
+      cacheWriteTokens: u?.inputTokenDetails?.cacheWriteTokens,
+      error: payload.error,
+      meta: payload.meta,
+    }),
+  );
+}
 
 /**
  * Tests the integration with the LLM translation library
@@ -66,15 +105,39 @@ export async function translateText(
   source: string = "auto",
   target: string,
 ): Promise<string> {
-  const { text: translatedText } = await generateText({
-    model: MODEL,
-    prompt: `Translate the following text from ${source} to ${target}. Only return the translated text, nothing else:
+  const prompt = `Translate (${source}→${target}). Output only the translated text, no explanation:
+${text}`;
+  const started = performance.now();
 
-"${text}"`,
-    temperature: TEMPERATURE,
-  });
-
-  return translatedText.trim();
+  try {
+    const result = await generateText({
+      model: MODEL,
+      prompt,
+      temperature: TEMPERATURE,
+    });
+    logTranslationTelemetry({
+      event: "translation.llm.complete",
+      operation: "translateText",
+      modelId: TRANSLATION_MODEL_ID,
+      durationMs: Math.round(performance.now() - started),
+      promptChars: prompt.length,
+      usage: result.usage,
+      totalUsage: result.totalUsage,
+      meta: { source, target },
+    });
+    return result.text.trim();
+  } catch (err) {
+    logTranslationTelemetry({
+      event: "translation.llm.error",
+      operation: "translateText",
+      modelId: TRANSLATION_MODEL_ID,
+      durationMs: Math.round(performance.now() - started),
+      promptChars: prompt.length,
+      error: err instanceof Error ? err.message : String(err),
+      meta: { source, target },
+    });
+    throw err;
+  }
 }
 
 /**
@@ -129,27 +192,44 @@ export async function translateObject(
   target: string,
 ): Promise<any> {
   const schema = createSchemaFromObject(object);
+  const payload = JSON.stringify(object);
+  const prompt = `Strings only: ${source}→${target}. Same JSON shape and keys; translate string values only; leave numbers/bools/null and array lengths unchanged.
 
-  const prompt = `Translate all string values in the following JSON object from ${source} to ${target}. 
-      Keep the structure exactly the same, only translate string values. 
-      Do not translate keys, only values. 
-      Keep numbers, booleans, null values, and other non-string values unchanged.
-      Preserve empty arrays as empty arrays [].
-      Do not add or remove any fields or array elements.
-      
-      Object to translate:
-      ${JSON.stringify(object, null, 2)}`;
+${payload}`;
+  const started = performance.now();
 
-  console.log("Translate Object Prompt:", prompt);
-
-  const { output: translatedObject } = await generateText({
-    model: MODEL,
-    prompt,
-    output: Output.object({ schema }),
-    temperature: TEMPERATURE,
-  });
-
-  return translatedObject;
+  try {
+    const result = await generateText({
+      model: MODEL,
+      prompt,
+      output: Output.object({ schema }),
+      temperature: TEMPERATURE,
+    });
+    logTranslationTelemetry({
+      event: "translation.llm.complete",
+      operation: "translateObject",
+      modelId: TRANSLATION_MODEL_ID,
+      durationMs: Math.round(performance.now() - started),
+      promptChars: prompt.length,
+      jsonPayloadChars: payload.length,
+      usage: result.usage,
+      totalUsage: result.totalUsage,
+      meta: { source, target },
+    });
+    return result.output;
+  } catch (err) {
+    logTranslationTelemetry({
+      event: "translation.llm.error",
+      operation: "translateObject",
+      modelId: TRANSLATION_MODEL_ID,
+      durationMs: Math.round(performance.now() - started),
+      promptChars: prompt.length,
+      jsonPayloadChars: payload.length,
+      error: err instanceof Error ? err.message : String(err),
+      meta: { source, target },
+    });
+    throw err;
+  }
 }
 
 /**
@@ -178,34 +258,43 @@ export async function translateObjectToMultipleLanguages(
   }
 
   const schema = z.object(multiLanguageSchema);
+  const codes = targets.join(",");
+  const payload = JSON.stringify(object);
+  const prompt = `Strings only: ${source}→[${codes}]. Top-level keys exactly: ${codes}; each value mirrors the input shape; translate strings only; preserve numbers/bools/null and array lengths.
 
-  const prompt = `Translate all string values in the following JSON object from ${source} to multiple target languages: ${targets.join(
-    ", ",
-  )}.
-      Return an object where each key is a language code (${targets.join(
-        ", ",
-      )}) and the value is the translated object.
-      Keep the structure exactly the same for each translation, only translate string values. 
-      Do not translate keys, only values. 
-      Keep numbers, booleans, null values, and other non-string values unchanged.
-      Preserve empty arrays as empty arrays [].
-      Do not add or remove any fields or array elements.
-      
-      Object to translate:
-      ${JSON.stringify(object, null, 2)}
-      
-      Return format: { "${targets[0]}": {...translated object...}, "${
-        targets[1]
-      }": {...translated object...}, ... }`;
+${payload}`;
+  const started = performance.now();
 
-  console.log("Translate Object to Multiple Languages Prompt:", prompt);
-
-  const { output: translatedObjects } = await generateText({
-    model: MODEL,
-    prompt,
-    output: Output.object({ schema }),
-    temperature: TEMPERATURE,
-  });
-
-  return translatedObjects as Record<string, any>;
+  try {
+    const result = await generateText({
+      model: MODEL,
+      prompt,
+      output: Output.object({ schema }),
+      temperature: TEMPERATURE,
+    });
+    logTranslationTelemetry({
+      event: "translation.llm.complete",
+      operation: "translateObjectToMultipleLanguages",
+      modelId: TRANSLATION_MODEL_ID,
+      durationMs: Math.round(performance.now() - started),
+      promptChars: prompt.length,
+      jsonPayloadChars: payload.length,
+      usage: result.usage,
+      totalUsage: result.totalUsage,
+      meta: { source, targets },
+    });
+    return result.output as Record<string, any>;
+  } catch (err) {
+    logTranslationTelemetry({
+      event: "translation.llm.error",
+      operation: "translateObjectToMultipleLanguages",
+      modelId: TRANSLATION_MODEL_ID,
+      durationMs: Math.round(performance.now() - started),
+      promptChars: prompt.length,
+      jsonPayloadChars: payload.length,
+      error: err instanceof Error ? err.message : String(err),
+      meta: { source, targets },
+    });
+    throw err;
+  }
 }
