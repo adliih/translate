@@ -1,8 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import {
-  translateObject,
-  translateObjectToMultipleLanguages,
-} from "@/lib/translation";
+import { translateObjectToMultipleLanguages } from "@/lib/translation";
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,8 +29,13 @@ export async function POST(request: NextRequest) {
         translatedObjects,
       });
     } else if (target) {
-      // Single language - use existing function
-      const translatedObject = await translateObject(object, source, target);
+      const translatedObjects = await translateObjectToMultipleLanguages(
+        object,
+        source,
+        [target],
+      );
+
+      const translatedObject = translatedObjects[target];
 
       return NextResponse.json({
         translatedObject,

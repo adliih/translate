@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Loader2, Languages, FileText, Braces } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 
@@ -37,52 +38,47 @@ export default function HomePage() {
   const [textInput, setTextInput] = useState("")
   const [objectInput, setObjectInput] = useState("")
   const [sourceLanguage, setSourceLanguage] = useState("en")
-  const [targetLanguage, setTargetLanguage] = useState("es")
-  const [textResult, setTextResult] = useState("")
-  const [objectResult, setObjectResult] = useState("")
+  const [targetLanguages, setTargetLanguages] = useState<string[]>(["es"])
+  const [textResult, setTextResult] = useState<Record<string, string>>({})
+  const [objectResult, setObjectResult] = useState<Record<string, object>>({})
   const [isTranslatingText, setIsTranslatingText] = useState(false)
   const [isTranslatingObject, setIsTranslatingObject] = useState(false)
 
+  const toggleTarget = (code: string) => {
+    setTargetLanguages((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
+    )
+  }
+
   const handleTextTranslation = async () => {
     if (!textInput.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter text to translate",
-        variant: "destructive",
-      })
+      toast({ title: "Error", description: "Please enter text to translate", variant: "destructive" })
+      return
+    }
+    if (targetLanguages.length === 0) {
+      toast({ title: "Error", description: "Please select at least one target language", variant: "destructive" })
       return
     }
 
     setIsTranslatingText(true)
     try {
-      const response = await fetch("/api/translate/text", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          text: textInput,
-          source: sourceLanguage,
-          target: targetLanguage,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error("Translation failed")
-      }
-
-      const data = await response.json()
-      setTextResult(data.translatedText)
-      toast({
-        title: "Success",
-        description: "Text translated successfully",
-      })
+      const results: Record<string, string> = {}
+      await Promise.all(
+        targetLanguages.map(async (target) => {
+          const response = await fetch("/api/translate/text", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: textInput, source: sourceLanguage, target }),
+          })
+          if (!response.ok) throw new Error("Translation failed")
+          const data = await response.json()
+          results[target] = data.translatedText
+        })
+      )
+      setTextResult(results)
+      toast({ title: "Success", description: "Text translated successfully" })
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to translate text. Please try again. " + error,
-        variant: "destructive",
-      })
+      toast({ title: "Error", description: "Failed to translate text. Please try again. " + error, variant: "destructive" })
     } finally {
       setIsTranslatingText(false)
     }
@@ -90,23 +86,19 @@ export default function HomePage() {
 
   const handleObjectTranslation = async () => {
     if (!objectInput.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter a JSON object to translate",
-        variant: "destructive",
-      })
+      toast({ title: "Error", description: "Please enter a JSON object to translate", variant: "destructive" })
+      return
+    }
+    if (targetLanguages.length === 0) {
+      toast({ title: "Error", description: "Please select at least one target language", variant: "destructive" })
       return
     }
 
     let parsedObject
     try {
       parsedObject = JSON.parse(objectInput)
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Invalid JSON format. Please check your input.",
-        variant: "destructive",
-      })
+    } catch {
+      toast({ title: "Error", description: "Invalid JSON format. Please check your input.", variant: "destructive" })
       return
     }
 
@@ -114,36 +106,33 @@ export default function HomePage() {
     try {
       const response = await fetch("/api/translate/object", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           object: parsedObject,
           source: sourceLanguage,
-          target: targetLanguage,
+          targets: targetLanguages,
         }),
       })
 
-      if (!response.ok) {
-        throw new Error("Translation failed")
-      }
+      if (!response.ok) throw new Error("Translation failed")
 
       const data = await response.json()
-      setObjectResult(JSON.stringify(data.translatedObject, null, 2))
-      toast({
-        title: "Success",
-        description: "Object translated successfully",
-      })
+      // API returns { translatedObjects: { es: {...}, fr: {...} } } for multiple targets
+      // or { translatedObject: {...} } for single target
+      if (data.translatedObjects) {
+        setObjectResult(data.translatedObjects)
+      } else {
+        setObjectResult({ [targetLanguages[0]]: data.translatedObject })
+      }
+      toast({ title: "Success", description: "Object translated successfully" })
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to translate object. Please try again." + error,
-        variant: "destructive",
-      })
+      toast({ title: "Error", description: "Failed to translate object. Please try again." + error, variant: "destructive" })
     } finally {
       setIsTranslatingObject(false)
     }
   }
+
+  const getLangName = (code: string) => languages.find((l) => l.code === code)?.name ?? code
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
@@ -153,7 +142,7 @@ export default function HomePage() {
             <Languages className="h-8 w-8 text-blue-600" />
             <h1 className="text-4xl font-bold text-gray-900">AI Translator</h1>
           </div>
-          <p className="text-lg text-gray-600">Powered by Gemini AI - Translate text and JSON objects instantly</p>
+          <p className="text-lg text-gray-600">Powered by Claude AI - Translate text and JSON objects instantly</p>
         </div>
 
         <Card className="mb-6">
@@ -162,39 +151,42 @@ export default function HomePage() {
               <Languages className="h-5 w-5" />
               Language Settings
             </CardTitle>
-            <CardDescription>Select source and target languages for translation</CardDescription>
+            <CardDescription>Select source language and one or more target languages</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="source-language">Source Language</Label>
-                <Select value={sourceLanguage} onValueChange={setSourceLanguage}>
-                  <SelectTrigger id="source-language">
-                    <SelectValue placeholder="Select source language" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {languages.map((lang) => (
-                      <SelectItem key={lang.code} value={lang.code}>
-                        {lang.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="target-language">Target Language</Label>
-                <Select value={targetLanguage} onValueChange={setTargetLanguage}>
-                  <SelectTrigger id="target-language">
-                    <SelectValue placeholder="Select target language" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {languages.map((lang) => (
-                      <SelectItem key={lang.code} value={lang.code}>
-                        {lang.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="source-language">Source Language</Label>
+              <Select value={sourceLanguage} onValueChange={setSourceLanguage}>
+                <SelectTrigger id="source-language" className="w-48">
+                  <SelectValue placeholder="Select source language" />
+                </SelectTrigger>
+                <SelectContent>
+                  {languages.map((lang) => (
+                    <SelectItem key={lang.code} value={lang.code}>
+                      {lang.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>
+                Target Languages{" "}
+                <span className="text-gray-400 font-normal">({targetLanguages.length} selected)</span>
+              </Label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                {languages.map((lang) => (
+                  <label
+                    key={lang.code}
+                    className="flex items-center gap-2 cursor-pointer rounded-md border px-3 py-2 text-sm hover:bg-gray-50 has-[:checked]:bg-blue-50 has-[:checked]:border-blue-300"
+                  >
+                    <Checkbox
+                      checked={targetLanguages.includes(lang.code)}
+                      onCheckedChange={() => toggleTarget(lang.code)}
+                    />
+                    {lang.name}
+                  </label>
+                ))}
               </div>
             </div>
           </CardContent>
@@ -216,7 +208,7 @@ export default function HomePage() {
             <Card>
               <CardHeader>
                 <CardTitle>Text Translation</CardTitle>
-                <CardDescription>Enter any text to translate it to your target language</CardDescription>
+                <CardDescription>Enter any text to translate it to your selected target languages</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
@@ -240,12 +232,15 @@ export default function HomePage() {
                     "Translate Text"
                   )}
                 </Button>
-                {textResult && (
-                  <div className="space-y-2">
-                    <Label>Translation Result</Label>
-                    <div className="p-4 bg-green-50 border border-green-200 rounded-md">
-                      <p className="text-green-800">{textResult}</p>
-                    </div>
+                {Object.keys(textResult).length > 0 && (
+                  <div className="space-y-3">
+                    <Label>Translation Results</Label>
+                    {targetLanguages.filter((t) => textResult[t]).map((code) => (
+                      <div key={code} className="p-4 bg-green-50 border border-green-200 rounded-md">
+                        <p className="text-xs font-semibold text-green-600 mb-1">{getLangName(code)}</p>
+                        <p className="text-green-800">{textResult[code]}</p>
+                      </div>
+                    ))}
                   </div>
                 )}
               </CardContent>
@@ -257,7 +252,7 @@ export default function HomePage() {
               <CardHeader>
                 <CardTitle>Object Translation</CardTitle>
                 <CardDescription>
-                  Enter a JSON object to translate all string values to your target language
+                  Enter a JSON object to translate all string values to your selected target languages
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -282,12 +277,17 @@ export default function HomePage() {
                     "Translate Object"
                   )}
                 </Button>
-                {objectResult && (
-                  <div className="space-y-2">
-                    <Label>Translation Result</Label>
-                    <div className="p-4 bg-green-50 border border-green-200 rounded-md">
-                      <pre className="text-green-800 text-sm overflow-x-auto">{objectResult}</pre>
-                    </div>
+                {Object.keys(objectResult).length > 0 && (
+                  <div className="space-y-3">
+                    <Label>Translation Results</Label>
+                    {targetLanguages.filter((t) => objectResult[t]).map((code) => (
+                      <div key={code} className="p-4 bg-green-50 border border-green-200 rounded-md">
+                        <p className="text-xs font-semibold text-green-600 mb-1">{getLangName(code)}</p>
+                        <pre className="text-green-800 text-sm overflow-x-auto">
+                          {JSON.stringify(objectResult[code], null, 2)}
+                        </pre>
+                      </div>
+                    ))}
                   </div>
                 )}
               </CardContent>
@@ -314,13 +314,13 @@ export default function HomePage() {
                 </pre>
               </div>
               <div className="p-4 bg-gray-50 rounded-lg">
-                <h3 className="font-semibold mb-2">Object Translation</h3>
+                <h3 className="font-semibold mb-2">Object Translation (multi-target)</h3>
                 <code className="text-sm text-gray-600">POST /api/translate/object</code>
                 <pre className="text-xs mt-2 text-gray-500">
                   {`{
   "object": {"title": "Hello"},
   "source": "en",
-  "target": "es"
+  "targets": ["es", "fr", "de"]
 }`}
                 </pre>
               </div>

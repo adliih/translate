@@ -1,8 +1,8 @@
-import { generateText, generateObject } from "ai";
-import { google } from "@ai-sdk/google";
+import { generateText, Output } from "ai";
+import { anthropic } from "@ai-sdk/anthropic";
 import { z } from "zod";
 
-export const MODEL = google("gemini-flash-lite-latest");
+export const MODEL = anthropic("claude-haiku-4-5-20251001");
 const TEMPERATURE = 0.1;
 
 /**
@@ -64,7 +64,7 @@ export async function testTranslationIntegration(): Promise<{
 export async function translateText(
   text: string,
   source: string = "auto",
-  target: string
+  target: string,
 ): Promise<string> {
   const { text: translatedText } = await generateText({
     model: MODEL,
@@ -126,7 +126,7 @@ function createSchemaFromObject(obj: any): z.ZodType<any> {
 export async function translateObject(
   object: any,
   source: string = "auto",
-  target: string
+  target: string,
 ): Promise<any> {
   const schema = createSchemaFromObject(object);
 
@@ -142,10 +142,10 @@ export async function translateObject(
 
   console.log("Translate Object Prompt:", prompt);
 
-  const { object: translatedObject } = await generateObject({
+  const { output: translatedObject } = await generateText({
     model: MODEL,
-    prompt: prompt,
-    schema: schema,
+    prompt,
+    output: Output.object({ schema }),
     temperature: TEMPERATURE,
   });
 
@@ -163,7 +163,7 @@ export async function translateObject(
 export async function translateObjectToMultipleLanguages(
   object: any,
   source: string = "auto",
-  targets: string[]
+  targets: string[],
 ): Promise<Record<string, any>> {
   if (!targets || targets.length === 0) {
     throw new Error("At least one target language is required");
@@ -180,10 +180,10 @@ export async function translateObjectToMultipleLanguages(
   const schema = z.object(multiLanguageSchema);
 
   const prompt = `Translate all string values in the following JSON object from ${source} to multiple target languages: ${targets.join(
-    ", "
+    ", ",
   )}.
       Return an object where each key is a language code (${targets.join(
-        ", "
+        ", ",
       )}) and the value is the translated object.
       Keep the structure exactly the same for each translation, only translate string values. 
       Do not translate keys, only values. 
@@ -195,17 +195,17 @@ export async function translateObjectToMultipleLanguages(
       ${JSON.stringify(object, null, 2)}
       
       Return format: { "${targets[0]}": {...translated object...}, "${
-    targets[1]
-  }": {...translated object...}, ... }`;
+        targets[1]
+      }": {...translated object...}, ... }`;
 
   console.log("Translate Object to Multiple Languages Prompt:", prompt);
 
-  const { object: translatedObjects } = await generateObject({
+  const { output: translatedObjects } = await generateText({
     model: MODEL,
-    prompt: prompt,
-    schema: schema,
+    prompt,
+    output: Output.object({ schema }),
     temperature: TEMPERATURE,
   });
 
-  return translatedObjects;
+  return translatedObjects as Record<string, any>;
 }
